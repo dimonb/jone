@@ -41,7 +41,7 @@ class HTTPTests(unittest.TestCase):
         return json.loads(body)
 
     def test_static_and_security_headers(self):
-        for path in ('/', '/style.css', '/app.js', '/icon.svg', '/healthz'):
+        for path in ('/', '/room/ABCDEF12', '/room/abcdef12/', '/style.css', '/app.js', '/icon.svg', '/healthz'):
             status, headers, body = self.request(path)
             self.assertEqual(status, 200)
             self.assertTrue(body)
@@ -50,6 +50,10 @@ class HTTPTests(unittest.TestCase):
             self.assertIn("script-src 'self'", headers['Content-Security-Policy'])
         self.assertEqual(self.request('/../game.py')[0], 404)
         self.assertEqual(self.request('/words.py')[0], 404)
+        for path in ('/room/ABCDEF12/token', '/room/invalid', '/room/../game.py'):
+            self.assertEqual(self.request(path)[0], 404)
+        self.assertEqual(self.request('/room/ABCDEF12')[2], self.request('/')[2])
+        self.assertEqual(self.request('/api/rooms/ABCDEF12')[0], 400)
 
     def test_real_http_game_and_reconnect(self):
         a = self.api('/api/rooms', dict(name='Аня'))

@@ -2,15 +2,57 @@
 const $ = id => document.getElementById(id);
 const labels = {easy:'☀ Лёгкая колода', hard:'✦ Сложная колода', adult:'☾ Колода 18+'};
 const node = (tag, text, cls) => { const e = document.createElement(tag); if(text !== undefined) e.textContent = text; if(cls) e.className = cls; return e; };
-let session = null, state = null, busy = false, polling = false, lastScreen = '', noticeTimer;
-try { session = JSON.parse(sessionStorage.getItem('jone-session')); } catch (_) {}
+let session = null, state = null, busy = false, polling = null, lastScreen = '', noticeTimer;
+// Tokens never enter a URL. Storage access can throw in restricted webviews.
+const storage = {
+  get(kind, key) { try { return window[kind].getItem(key); } catch (_) { return null; } },
+  set(kind, key, value) { try { window[kind].setItem(key, value); return true; } catch (_) { return false; } },
+  remove(kind, key) { try { window[kind].removeItem(key); } catch (_) {} }
+};
+const roomCode = value => typeof value === 'string' && /^[A-Fa-f0-9]{8}$/.test(value) ? value.toUpperCase() : null;
+function identity(raw) {
+  try {
+    const value = JSON.parse(raw);
+    return value && roomCode(value.code) && typeof value.token === 'string' && /^[A-Za-z0-9_-]{43}$/.test(value.token)
+      ? {code:roomCode(value.code), token:value.token} : null;
+  } catch (_) { return null; }
+}
+function remembered(code) {
+  for(const kind of ['localStorage', 'sessionStorage']) {
+    const saved = identity(storage.get(kind, 'jone-room-'+code));
+    if(saved && saved.code === code) return saved;
+  }
+  return null;
+}
+function remember(value) {
+  const raw = JSON.stringify(value);
+  const durable = storage.set('localStorage', 'jone-room-'+value.code, raw);
+  storage.set('sessionStorage', 'jone-room-'+value.code, raw);
+  storage.set('localStorage', 'jone-active', value.code);
+  storage.set('sessionStorage', 'jone-active', value.code);
+  return durable;
+}
+function forget(value) {
+  if(!value) return;
+  for(const kind of ['localStorage', 'sessionStorage']) {
+    storage.remove(kind, 'jone-room-'+value.code);
+    if(storage.get(kind, 'jone-active') === value.code) storage.remove(kind, 'jone-active');
+  }
+}
+function showWelcome(code) {
+  state=null; lastScreen='';
+  $('table').classList.add('hidden'); $('welcome').classList.remove('hidden');
+  $('join-form').elements.code.value=code || '';
+}
+function roomURL(code) { return '/room/'+code; }
+
 function notice(text) { $('notice').textContent = text; $('notice').classList.remove('hidden'); clearTimeout(noticeTimer); noticeTimer = setTimeout(()=>$('notice').classList.add('hidden'), 6000); }
-async function api(path, body) {
+async function api(path, body, current=session) {
   const controller = new AbortController(), timer = setTimeout(()=>controller.abort(), 8000);
   try {
-    const response = await fetch(path, {method:body ? 'POST':'GET', headers:{'Content-Type':'application/json', ...(session ? {Authorization:'Bearer '+session.token}:{})}, body:body ? JSON.stringify(body):undefined, signal:controller.signal});
+    const response = await fetch(path, {method:body ? 'POST':'GET', headers:{'Content-Type':'application/json', ...(current ? {Authorization:'Bearer '+current.token}:{})}, body:body ? JSON.stringify(body):undefined, signal:controller.signal});
     const data = await response.json();
-    if(!response.ok) throw new Error(data.error || 'Ошибка сервера');
+    if(!response.ok) { const error=new Error(data.error || 'Ошибка сервера'); error.status=response.status; throw error; }
     return data;
   } finally { clearTimeout(timer); }
 }
@@ -19,9 +61,14 @@ async function enter(form, create) {
   const f = new FormData(form), data = {name:f.get('name'), adult:f.get('adult') === 'on'};
   if(create) Object.assign(data, {mode:f.get('mode'), rounds:Number(f.get('rounds'))});
   try {
-    session = await api(create ? '/api/rooms':'/api/rooms/'+String(f.get('code')).trim().toUpperCase()+'/join', data);
-    sessionStorage.setItem('jone-session', JSON.stringify(session));
-    history.replaceState(null, '', '#'+session.code); lastScreen=''; await poll();
+    const code=roomCode(String(f.get('code')).trim());
+    // Returning to a known room resumes its seat, never silently creates another.
+    const saved=!create && code ? remembered(code) : null;
+    session = saved || await api(create ? '/api/rooms':'/api/rooms/'+code+'/join', data, null);
+    const durable=remember(session);
+    history.replaceState(null, '', roomURL(session.code)); showWelcome(session.code);
+    await poll();
+    if(!durable) notice('Браузер не сохраняет сеанс надолго. Не закрывайте эту вкладку.');
   } catch(e) { notice(e.message); } finally { busy=false; }
 }
 $('create-form').addEventListener('submit', e=>{e.preventDefault(); enter(e.target,true);});
@@ -33,9 +80,9 @@ $('create-form').addEventListener('change', ()=>{
 });
 $('rules-open').onclick=()=>$('rules').showModal();
 $('rules-close').onclick=()=>$('rules').close();
-$('leave').onclick=()=>{if(!confirm('Выйти из комнаты? Место станет неактивным через 15 секунд.')) return; session=null; state=null; sessionStorage.removeItem('jone-session'); history.replaceState(null,'',location.pathname); $('table').classList.add('hidden'); $('welcome').classList.remove('hidden');};
+$('leave').onclick=()=>{if(!confirm('Выйти из комнаты? Место станет неактивным через 15 секунд.')) return; forget(session); session=null; history.replaceState(null,'','/'); showWelcome();};
 $('copy-link').onclick=async()=>{
-  const link=location.origin+'/#'+state.code;
+  const link=location.origin+roomURL(state.code);
   try { await navigator.clipboard.writeText(link); notice('Ссылка скопирована'); } catch(_) { prompt('Скопируйте ссылку:',link); }
 };
 function button(text, action, cls='secondary', extra={}) {
@@ -43,7 +90,7 @@ function button(text, action, cls='secondary', extra={}) {
 }
 async function act(data) {
   if(busy || !session) return; busy=true;
-  try { state=await api('/api/rooms/'+session.code+'/action',data); render(); }
+  try { const current=session; const next=await api('/api/rooms/'+current.code+'/action',data,current); if(session!==current) return; state=next; render(); }
   catch(e) { notice(e.message); } finally { busy=false; }
 }
 function entry(kind, placeholder, text, maximum) {
@@ -101,11 +148,37 @@ function render() {
   $('history-list').replaceChildren(...s.history.map(h=>node('li',h.word+' — '+(h.correct?'✓':'×'))));
 }
 async function poll() {
-  if(!session || polling) return; polling=true;
-  try { const current=session; const next=await api('/api/rooms/'+current.code); if(session!==current) return; state=next; render(); $('connection').textContent='Связь установлена · обновление каждые 2 секунды'; }
-  catch(e) { $('connection').textContent='Нет связи: '+e.message+'. Пробуем снова…'; if(!state) notice('Не удалось восстановить сеанс: '+e.message); }
-  finally { polling=false; }
+  if(!session || polling===session) return;
+  const current=session; polling=current;
+  try {
+    const next=await api('/api/rooms/'+current.code, undefined, current);
+    if(session!==current) return;
+    state=next; render(); $('connection').textContent='Связь установлена · обновление каждые 2 секунды';
+  } catch(e) {
+    if(session!==current) return;
+    if(e.status===400) {
+      // Expired room/removed seat is terminal; network errors and 429 are not.
+      forget(current); session=null; showWelcome(current.code);
+      notice(e.message); return;
+    }
+    $('connection').textContent='Нет связи: '+e.message+'. Пробуем снова…';
+    if(!state) notice('Не удалось восстановить сеанс: '+e.message);
+  } finally { if(polling===current) polling=null; }
 }
-const invite=location.hash.slice(1); if(/^[A-Fa-f0-9]{8}$/.test(invite)) $('join-form').elements.code.value=invite.toUpperCase();
-if(session && (!session.code || !session.token)) session=null;
-poll(); setInterval(poll,2000); document.addEventListener('visibilitychange',()=>{if(!document.hidden) poll();});
+function restore() {
+  const path=location.pathname.match(/^\/room\/([A-Fa-f0-9]{8})\/?$/);
+  const invite=roomCode(path ? path[1] : location.hash.slice(1));
+  // Migrate old same-tab credentials without overriding an explicit invitation.
+  const legacy=identity(storage.get('sessionStorage', 'jone-session'));
+  if(legacy) remember(legacy);
+  storage.remove('sessionStorage', 'jone-session');
+  const code=invite || roomCode(storage.get('sessionStorage','jone-active')) || roomCode(storage.get('localStorage','jone-active'));
+  session=code ? remembered(code) : null;
+  showWelcome(code);
+  if(code) history.replaceState(null,'',roomURL(code));
+  poll();
+}
+restore();
+window.addEventListener('popstate', restore);
+window.addEventListener('hashchange', restore);
+setInterval(poll,2000); document.addEventListener('visibilitychange',()=>{if(!document.hidden) poll();});

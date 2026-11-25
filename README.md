@@ -8,7 +8,9 @@ from commercial cards; no third-party artwork, fonts, trackers or runtime packag
 ## Local run and test
 
 Python 3.11+ (container uses 3.14.10), browser with modern DOM/fetch support. No pip/npm
-installation or requirements file is necessary: runtime and tests use the stdlib.
+installation is necessary at runtime: engine/HTTP tests use the stdlib.
+Browser regressions use the pinned Playwright dev dependency (`npm ci`,
+`npx playwright install chromium`, `npm run test:browser`).
 
 ```sh
 cd jone
@@ -44,13 +46,22 @@ A round ends when the guesser disconnects for 45 seconds. Host can reset to lobb
 or remove lobby seats. Translation/root-word rule is social, not a morphological
 filter: the literal normalized target itself is rejected server-side.
 
-The browser polls every 2 seconds. Session token lives in **sessionStorage**, not
-URLs/cookies; refresh reconnects in the same tab, invitations carry only room code
-in the URL fragment. Opening another tab is normally a separate seat (some browsers
-copy sessionStorage on duplicate-tab, so use private windows/contexts to test).
-Do not share your browser session with a competing player. Leave stops polling;
-its seat becomes offline then is pruned in the lobby after the grace period.
-If the server restarted or room expired, use the join form to create a new session.
+The browser polls every 2 seconds. Invitations are `/room/CODE` URLs containing
+only a public room code, never a player token. Legacy `/#CODE` links still work.
+Identity is saved **per room in localStorage**, with sessionStorage fallback;
+refresh, new tabs and returning to a different known room resume the same seat.
+An explicit invitation to another room takes precedence over an old session.
+Separate browser profiles/private contexts are needed for different players.
+Storage-blocking webviews still work in-memory but cannot promise recovery after
+closing the tab; the UI warns when persistent storage cannot be written.
+Browser storage can be cleared by the user/OS, and is accessible to same-origin
+scripts (the app's restrictive CSP remains in place). Do not share a browser
+profile with a competing player. Leave forgets that room's saved identity and
+stops polling; its seat becomes offline then is pruned in the lobby after the
+grace period. Removed/expired credentials return to an explicit join form; network
+failures preserve credentials and retry GET only, never automatically add a seat.
+Existing idle-lobby pruning still removes non-host seats after 45 seconds away;
+server restart/room expiry cannot be repaired by a saved browser token.
 
 All room state is in one process's RAM, with a lock around engine access. **Deploy
 exactly one replica**; use a **Recreate** strategy (no rolling overlapping processes).

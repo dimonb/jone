@@ -100,6 +100,8 @@ class Handler(BaseHTTPRequestHandler):
                  '/app.js': ('app.js', 'text/javascript; charset=utf-8'),
                  '/style.css': ('style.css', 'text/css; charset=utf-8'),
                  '/icon.svg': ('icon.svg', 'image/svg+xml')}
+        if re.fullmatch(r'/room/[A-Fa-f0-9]{8}/?', path):
+            path = '/'  # Public shell only; API still requires the player's token.
         if path in files:
             name, mime = files[path]
             return self.send(200, (ROOT / name).read_bytes(), mime)

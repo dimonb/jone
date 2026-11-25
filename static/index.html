@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#191d26"><meta name="description" content="Одна подсказка. Общая победа. Бесплатная игра в ассоциации для компании из 3–12 человек.">
+<title>Jone — одна подсказка</title><link rel="icon" href="/icon.svg" type="image/svg+xml"><link rel="stylesheet" href="/style.css"><script defer src="/app.js"></script>
+</head>
+<body>
+<header><a class="brand" href="/" aria-label="Jone — главная"><img src="/icon.svg" alt="" width="36" height="36">jone<span>одна подсказка</span></a><button class="icon-button" id="rules-open" aria-label="Правила игры">?</button></header>
+<main>
+<section id="welcome">
+<div class="intro"><span class="eyebrow">ИГРА ДЛЯ СВОИХ · 3–12 ЧЕЛОВЕК</span><h1>Разные мысли.<br><em>Одно слово.</em></h1><p>Пишите ассоциации, не сговариваясь.<br>Совпадения исчезнут. Остальное — ваша надежда.</p></div>
+<div class="welcome-grid">
+<form id="create-form" class="panel"><div class="section-label">НОВЫЙ СТОЛ</div><h2>Соберите компанию</h2><label>Ваше имя<input name="name" autocomplete="nickname" placeholder="Как вас зовут?" maxlength="20" required></label><fieldset><legend>Какие слова загадываем?</legend><div class="modes"><label class="mode"><input type="radio" name="mode" value="easy" checked><span>☀<b>Легко</b><small>Вещи вокруг нас</small></span></label><label class="mode"><input type="radio" name="mode" value="hard"><span>✦<b>Сложно</b><small>Идеи и открытия</small></span></label><label class="mode"><input type="radio" name="mode" value="adult"><span>☾<b>18+</b><small>Без стеснения</small></span></label></div></fieldset><label id="create-age" class="age hidden"><input type="checkbox" name="adult">Мне исполнилось 18 лет. В колоде — взрослые темы.</label><label>Длина партии<select name="rounds"><option value="5">5 раундов · на пробу</option value="10" selected>10 раундов · на вечер</option value="13">13 раундов · ещё по одной</option></select></label><button class="primary" type="submit">Создать комнату <span>↗</span></button></form>
+<div class="join-column"><form id="join-form" class="panel"><div class="section-label">УЖЕ ЖДУТ ДРУЗЬЯ?</div><h2>Присоединяйтесь</h2><label>Ваше имя<input name="name" autocomplete="nickname" placeholder="Имя за столом" maxlength="20" required></label><label>Код комнаты<input name="code" placeholder="8 символов из ссылки" pattern="[a-fA-F0-9]{8}" maxlength="8" required autocapitalize="characters" spellcheck="false"></label><label class="age"><input type="checkbox" name="adult">Мне 18+ (для взрослой комнаты)</label><button type="submit" class="secondary">Сесть за стол</button></form><div class="mini-paper"><span>✎</span><p>Лучше всего — вместе<br>на звонке или за одним столом.</p></div></div>
+</div><p class="privacy">Без регистрации и рекламы. Комнаты временные: исчезают после 6 часов бездействия или перезапуска сервера.</p>
+</section>
+<section id="table" class="hidden">
+<div class="table-top"><div><span class="section-label">ВАШ СТОЛ</span><h1 id="room-title"></h1></div><div class="room-actions"><button id="copy-link" class="secondary small">Пригласить ↗</button><button id="leave" class="icon-button" aria-label="Выйти из комнаты">↪</button></div></div>
+<div class="connection" id="connection" role="status"></div>
+<div id="players" class="players"></div>
+<div class="round-bar"><span id="mode-label"></span><strong id="round-label"></strong><span id="score-label"></span></div>
+<div id="round-content"></div>
+<div class="host-controls" id="host-controls"></div>
+<details class="history"><summary>Как шла партия</summary><ol id="history-list"></ol></details>
+</section>
+<div id="notice" class="notice hidden" role="alert"></div>
+</main>
+<footer>jone · слова сближают <span>Собственная игра в ассоциации</span></footer>
+<dialog id="rules"><button id="rules-close" class="icon-button dialog-close" aria-label="Закрыть">×</button><span class="eyebrow">ОДНА ПОДСКАЗКА</span><h2>Один угадывает.<br>Все помогают.</h2><ol><li>Угадывающий не видит секретное слово. Остальные пишут по одной подсказке.</li><li>Подсказка — одно слово. Не пишите само слово, его перевод или однокоренные формы. Не обсуждайте подсказки заранее.</li><li>Все совпавшие подсказки исчезают: «Ёлка», «елка!» и «ЕЛКА» считаются одинаковыми.</li><li>Угадывающий видит только уникальные подсказки и получает одну попытку. Верный ответ — одно очко всей команде.</li><li>Следующий раунд — новый угадывающий. Побейте свой командный рекорд!</li></ol><p>На подсказки — 2 минуты, на ответ — 90 секунд. Пропущенные подсказки не задерживают игру. После 45 секунд без связи ведущий сменится, а раунд с отключившимся угадывающим завершится. Ведущий может вернуть всех в лобби. Нужны минимум 3 игрока онлайн.</p><p>Режим 18+ — отдельная колода только для совершеннолетних. Имена, ответы и подсказки видны участникам комнаты. Не указывайте личные данные.</p></dialog>
+</body></html>
